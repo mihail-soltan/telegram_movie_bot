@@ -15,6 +15,9 @@ class Movie:
         self.genre = genre
         self.year = None
 
+    def __str__(self):
+        return f"Genre: {self.genre}, Year: {self.year}"
+
 class Series(Movie):
     pass
 
@@ -30,16 +33,21 @@ def get_genres(content_type):
     return genres
 
 def get_filtered_movies(message):
-    genre = movie_dict[message.chat.id]['genre']
-    year = movie_dict[message.chat.id]['year']
-    url = f"https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=1&sort_by=popularity.desc&with_genres={genre}&year={year}"
+    movie_object = movie_dict[message.chat.id]
+    genre = movie_object.genre
+    genre_id = list(filter(lambda m: m['name'] == genre, movie_genres))[0]['id']
+    year = movie_object.year
+    url = f"https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=1&sort_by=popularity.desc&with_genres={genre_id}&year={year}"
+
     headers = {
         "accept": "application/json",
         "Authorization": f"Bearer {TMDB_API_TOKEN}"
     }
 
     response = requests.get(url, headers=headers)
-
+    movies = response.json()['results']
+    print(movies)
+    return movies
 
 movie_dict = {}
 movie_genres = get_genres("movie")
@@ -97,10 +105,12 @@ def pick_movie(message):
         chat_id = message.chat.id
         year = message.text
         movie = movie_dict[chat_id]
+
         if year.isdigit():
             movie.year = year
         else:
             raise Exception("please use a number for the year")
+        bot.reply_to(message, get_filtered_movies(message))
 
     except Exception as e:
         bot.reply_to(message, 'error')
