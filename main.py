@@ -3,12 +3,15 @@ import telebot
 from telebot import types
 import dotenv
 import requests
+import json
 
 dotenv.load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 TMDB_API_TOKEN = os.getenv("TMDB_API_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
+img_base_path="https://image.tmdb.org/t/p/original"
+# https://stackoverflow.com/questions/66915567/trying-to-get-backdrops-of-series-from-tmdb
 
 class Movie:
     def __init__(self, genre):
@@ -33,26 +36,34 @@ def get_genres(content_type):
     return genres
 
 def get_filtered_movies(message):
-    movie_object = movie_dict[message.chat.id]
-    genre = movie_object.genre
-    genre_id = list(filter(lambda m: m['name'] == genre, movie_genres))[0]['id']
-    year = movie_object.year
-    url = f"https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=1&sort_by=popularity.desc&with_genres={genre_id}&year={year}"
+    try:
+        movie_object = movie_dict[message.chat.id]
+        genre = movie_object.genre
+        genre_id = movie_genres_lookup.get(genre)
+        year = movie_object.year
+        url = f"https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=1&sort_by=popularity.desc&with_genres={genre_id}&year={year}"
 
-    headers = {
-        "accept": "application/json",
-        "Authorization": f"Bearer {TMDB_API_TOKEN}"
-    }
+        headers = {
+            "accept": "application/json",
+            "Authorization": f"Bearer {TMDB_API_TOKEN}"
+        }
 
-    response = requests.get(url, headers=headers)
-    movies = response.json()['results']
-    print(movies)
-    return movies
+        response = requests.get(url, headers=headers)
+        movies = response.json()['results']
+        # movies_json = json.dumps(movies)
+        # with open('movies.json', 'w') as file:
+        #     file.write(movies_json)
+        return movies
+    except Exception as e:
+        print(e)
+
 
 movie_dict = {}
 movie_genres = get_genres("movie")
 series_genres = get_genres("tv")
 
+movie_genres_lookup = {genre['name']: genre['id'] for genre in movie_genres}
+series_genres_lookup = {genre['name']: genre['id'] for genre in series_genres}
 
 @bot.message_handler(commands=['start', 'hello'])
 def send_welcome(message):
