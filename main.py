@@ -1,6 +1,6 @@
 import os
 import telebot
-from telebot import types
+from telebot import types, util
 import dotenv
 import requests
 import json
@@ -42,7 +42,7 @@ def get_filtered_movies(message):
         genre_id = movie_genres_lookup.get(genre)
         year = movie_object.year
         url = f"https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=1&sort_by=popularity.desc&with_genres={genre_id}&year={year}"
-
+        print(url)
         headers = {
             "accept": "application/json",
             "Authorization": f"Bearer {TMDB_API_TOKEN}"
@@ -50,9 +50,7 @@ def get_filtered_movies(message):
 
         response = requests.get(url, headers=headers)
         movies = response.json()['results']
-        # movies_json = json.dumps(movies)
-        # with open('movies.json', 'w') as file:
-        #     file.write(movies_json)
+
         return movies
     except Exception as e:
         print(e)
@@ -64,6 +62,11 @@ series_genres = get_genres("tv")
 
 movie_genres_lookup = {genre['name']: genre['id'] for genre in movie_genres}
 series_genres_lookup = {genre['name']: genre['id'] for genre in series_genres}
+
+# TODO: implement filtering for matching genres in the genres_lookup
+
+def filter_genres(pair):
+    pass
 
 @bot.message_handler(commands=['start', 'hello'])
 def send_welcome(message):
@@ -121,9 +124,23 @@ def pick_movie(message):
             movie.year = year
         else:
             raise Exception("please use a number for the year")
-        bot.reply_to(message, get_filtered_movies(message))
+        movie_list = get_filtered_movies(message)
+        top_5 = movie_list[0:4]
+        formatted_reply = "Here are some movies you might like:\n\n"
+        bot.reply_to(message, formatted_reply)
+        for m in top_5:
+            title = m['original_title']
+            poster = img_base_path+m['poster_path']
+            overview = m['overview']
+            rating = m['vote_average']
+            formatted_reply += f"{poster}\nTitle: {title}\nOverview:{overview}\nRating:{rating}\n\n"
+            bot.send_message(message.chat.id, f"{poster}\nTitle: {title}\nOverview:{overview}\nRating:{rating}\n\n")
+        # split_text = util.split_string(formatted_reply, 3000)
+        # for text in split_text:
+        # bot.reply_to(message, formatted_reply)
 
     except Exception as e:
+        print(e)
         bot.reply_to(message, 'error')
 
 @bot.message_handler(func=lambda msg: True)
