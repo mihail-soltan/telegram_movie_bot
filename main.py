@@ -3,13 +3,12 @@ import telebot
 from telebot import types, util
 import dotenv
 import requests
-import json
-
+import datetime
 dotenv.load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 TMDB_API_TOKEN = os.getenv("TMDB_API_TOKEN")
-bot = telebot.TeleBot(BOT_TOKEN)
+bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
 img_base_path="https://image.tmdb.org/t/p/original"
 # https://stackoverflow.com/questions/66915567/trying-to-get-backdrops-of-series-from-tmdb
 
@@ -41,7 +40,7 @@ def get_filtered_movies(message):
         genre = movie_object.genre
         genre_id = movie_genres_lookup.get(genre)
         year = movie_object.year
-        url = f"https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=1&sort_by=popularity.desc&with_genres={genre_id}&year={year}"
+        url = f"https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=1&sort_by=popularity.desc&with_genres={genre_id}&primary_release_year={year}"
         print(url)
         headers = {
             "accept": "application/json",
@@ -65,8 +64,14 @@ series_genres_lookup = {genre['name']: genre['id'] for genre in series_genres}
 
 # TODO: implement filtering for matching genres in the genres_lookup
 
-def filter_genres(pair):
-    pass
+def match_genres(genre_dict, item_genre_list):
+    matched_genres = [k for k, v in genre_dict.items() if v in item_genre_list]
+    return matched_genres
+
+def convert_release_date(date):
+    date_format = '%Y-%m-%d'
+    datetime_str = datetime.datetime.strptime(date, date_format)
+    return datetime_str
 
 @bot.message_handler(commands=['start', 'hello'])
 def send_welcome(message):
@@ -126,15 +131,23 @@ def pick_movie(message):
             raise Exception("please use a number for the year")
         movie_list = get_filtered_movies(message)
         top_5 = movie_list[0:4]
+        print(top_5[0])
         formatted_reply = "Here are some movies you might like:\n\n"
         bot.reply_to(message, formatted_reply)
         for m in top_5:
             title = m['original_title']
-            poster = img_base_path+m['poster_path']
+            poster = f"<a href=\"{img_base_path+m['poster_path']}\"> </a>"
             overview = m['overview']
             rating = m['vote_average']
-            formatted_reply += f"{poster}\nTitle: {title}\nOverview:{overview}\nRating:{rating}\n\n"
-            bot.send_message(message.chat.id, f"{poster}\nTitle: {title}\nOverview:{overview}\nRating:{rating}\n\n")
+            matched_genres = match_genres(movie_genres_lookup, m['genre_ids'])
+            genre_string = ", ".join(matched_genres)
+            release_date = convert_release_date(m['release_date'])
+            day = release_date.strftime("%d")
+            month = release_date.strftime("%B")
+            year = release_date.strftime("%Y")
+            formatted_release_date = f"{month} {day}, {year}"
+            movie_card = f"{poster}\n<b>Title:</b> {title}\n<b>Overview:</b>\n{overview}\n<b>Genres:</b> {genre_string}\n<b>Release Date:</b> {formatted_release_date}\n<b>Rating:</b>{rating}\n\n"
+            bot.send_message(message.chat.id, movie_card)
         # split_text = util.split_string(formatted_reply, 3000)
         # for text in split_text:
         # bot.reply_to(message, formatted_reply)
